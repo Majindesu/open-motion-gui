@@ -6,6 +6,7 @@ export interface GSAPTween {
   duration: number;
   delay: number;
   ease: string;
+  from?: boolean; // gsap.from instead of gsap.to
   properties: Record<string, unknown>;
   scrollProps?: { start: string; end: string; scrub: boolean };
 }
@@ -25,6 +26,9 @@ export interface ASTNode {
     width?: string;
     height?: string;
     zIndex: number;
+    background?: string;
+    color?: string;
+    fontSize?: string;
   };
   animations: GSAPTween[];
 }

@@ -1,6 +1,7 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import type { ASTNode, GSAPTween } from '../types/Common';
+import { DRAW_SELECTOR, tweenVars } from './Animation';
  
 const refName = (id: string) => 'ref_' + id.replace(/[^a-zA-Z0-9]/g, '_');
 const children = (ast: ASTNode[], pid: string | null) =>
@@ -15,6 +16,9 @@ function toJSX(ast: ASTNode[], node: ASTNode, depth: number): string {
     justifyContent: s.justifyContent,
     alignItems: s.alignItems,
     padding: s.padding,
+    background: s.background,
+    color: s.color,
+    fontSize: s.fontSize,
     width: s.width,
     height: s.height,
     position: 'relative',
@@ -38,32 +42,43 @@ function toJSX(ast: ASTNode[], node: ASTNode, depth: number): string {
  
 // ---------- Tweens -> GSAP code ----------
 function toTween(node: ASTNode, t: GSAPTween): string {
-  const el = `${refName(node.id)}.current`;
-  const vars = JSON.stringify({ ...t.properties, duration: t.duration, delay: t.delay, ease: t.ease });
- 
-  switch (t.trigger) {
-    case 'ON_LOAD':
-      return `gsap.to(${el}, ${vars});`;
-    case 'ON_SCROLL':
-      return `gsap.to(${el}, { ...${vars}, scrollTrigger: { trigger: ${el}, ...${JSON.stringify(t.scrollProps ?? {})} } });`;
-    default: {
-      const evt = t.trigger === 'ON_CLICK' ? 'click' : 'mouseenter';
-      return `{ const el = ${el}; if (el) { const h = () => gsap.to(el, ${vars}); el.addEventListener('${evt}', h); cleanups.push(() => el.removeEventListener('${evt}', h)); } }`;
-    }
-  }
+  const { vars, draw, split, from } = tweenVars(node, t);
+  const v = JSON.stringify(vars);
+  const target = draw ? `el.querySelectorAll(${JSON.stringify(DRAW_SELECTOR)})` : split ? 'split.chars' : 'el';
+  const call = draw
+    ? `gsap.fromTo(${target}, { drawSVG: '0%' }, { ...${v}, drawSVG: '100%', ...extra })`
+    : `gsap.${from ? 'from' : 'to'}(${target}, { ...${v}, ...extra })`;
+  const evt = t.trigger === 'ON_CLICK' ? 'click' : 'mouseenter';
+  const trigger =
+    t.trigger === 'ON_LOAD' ? 'run();'
+    : t.trigger === 'ON_SCROLL' ? `run({ scrollTrigger: { trigger: el, ...${JSON.stringify(t.scrollProps ?? {})} } });`
+    : `const h = () => run(); el.addEventListener('${evt}', h); cleanups.push(() => el.removeEventListener('${evt}', h));`;
+  const splitSetup = split
+    ? ` const split = SplitText.create(el, { type: ${JSON.stringify(split.type)} }); cleanups.push(() => split.revert());` : '';
+  return `{ const el = ${refName(node.id)}.current; if (el) {${splitSetup} const run = (extra: gsap.TweenVars = {}) => ${call}; ${trigger} } }`;
 }
  
 export function compileApp(ast: ASTNode[]): string {
   const roots = children(ast, null);
   const usesScroll = ast.some(n => n.animations.some(a => a.trigger === 'ON_SCROLL'));
+  const resolved = ast.flatMap(n => n.animations.map(t => tweenVars(n, t)));
+  const usesDraw = resolved.some(r => r.draw);
+  const usesSplit = resolved.some(r => r.split);
+  const pluginImports = [
+    usesScroll && "import { ScrollTrigger } from 'gsap/ScrollTrigger';",
+    usesDraw && "import { DrawSVGPlugin } from 'gsap/DrawSVGPlugin';",
+    usesSplit && "import { SplitText } from 'gsap/SplitText';",
+  ].filter(Boolean).join('\n');
+  const registered = ['useGSAP', usesScroll && 'ScrollTrigger', usesDraw && 'DrawSVGPlugin', usesSplit && 'SplitText']
+    .filter(Boolean).join(', ');
   const refs = ast.map(n => `  const ${refName(n.id)} = useRef<any>(null);`).join('\n');
   const tweens = ast.flatMap(n => n.animations.map(t => '      ' + toTween(n, t))).join('\n');
  
   return `import { useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-${usesScroll ? "import { ScrollTrigger } from 'gsap/ScrollTrigger';\n" : ''}
-gsap.registerPlugin(useGSAP${usesScroll ? ', ScrollTrigger' : ''});
+${pluginImports}
+gsap.registerPlugin(${registered});
  
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -138,3 +153,4 @@ export async function exportProject(ast: ASTNode[]) {
   root.file('src/App.tsx', compileApp(ast));
   saveAs(await zip.generateAsync({ type: 'blob' }), 'gsap-project.zip');
 }
+ 

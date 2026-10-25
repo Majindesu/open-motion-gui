@@ -11,7 +11,7 @@ export const useDropHint = create<{ hint: Drop | null; setHint: (h: Drop | null)
   hint: null,
   setHint: hint => set({ hint }),
 }));
-
+ 
 /** Pointer in the middle of a container row = nest; top/bottom half = sibling above/below. */
 export function computeDrop(overId: string, ast: ASTNode[], over: ClientRect, active: ClientRect | null): Drop | null {
   if (overId === ROOT_ID) return { targetId: null, pos: 'after' };
@@ -22,14 +22,14 @@ export function computeDrop(overId: string, ast: ASTNode[], over: ClientRect, ac
   if (t.type === 'CONTAINER' && r > 0.25 && r < 0.75) return { targetId: t.id, pos: 'inside' };
   return { targetId: t.id, pos: r < 0.5 ? 'before' : 'after' };
 }
-
+ 
 const flatten = (ast: ASTNode[], pid: string | null = null, depth = 0): { node: ASTNode; depth: number }[] =>
   ast.filter(n => n.parentId === pid).sort((a, b) => b.style.zIndex - a.style.zIndex) // front-most first
     .flatMap(n => [{ node: n, depth }, ...flatten(ast, n.id, depth + 1)]);
-
+ 
 const noShift = () => null; // rows don't slide aside; the drop indicator shows the result instead
 const ICON = { CONTAINER: '▭', TEXT: 'T', RASTER: '🖼', INLINE_SVG: '✦' } as const;
-
+ 
 function Row({ node, depth }: { node: ASTNode; depth: number }) {
   const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: node.id });
   const selected = useEditor(s => s.selectedId === node.id);
@@ -37,13 +37,13 @@ function Row({ node, depth }: { node: ASTNode; depth: number }) {
   const hint = useDropHint(s => (s.hint?.targetId === node.id ? s.hint.pos : null));
   const shadow = hint === 'before' ? 'inset 0 2px 0 #3b82f6' : hint === 'after' ? 'inset 0 -2px 0 #3b82f6'
     : hint === 'inside' ? 'inset 0 0 0 2px #3b82f6' : undefined;
-
+ 
   const remove = () => {
     useEditor.getState().removeNode(node.id);
     const s = useEditor.getState();
     if (!s.ast.some(n => n.id === s.selectedId)) s.select(null);
   };
-
+ 
   return (
     <div ref={setNodeRef} {...attributes} {...listeners} onClick={() => select(node.id)}
       className={`flex items-center gap-2 py-1 pr-2 text-sm cursor-grab ${selected ? 'bg-[#2F4B7C]' : 'hover:bg-[#2A2A2A]'}`}
@@ -56,7 +56,7 @@ function Row({ node, depth }: { node: ASTNode; depth: number }) {
     </div>
   );
 }
-
+ 
 function RootZone() {
   const { setNodeRef } = useDroppable({ id: ROOT_ID });
   const active = useDropHint(s => s.hint?.targetId === null && s.hint.pos === 'after');
@@ -64,7 +64,7 @@ function RootZone() {
   return <div ref={setNodeRef} className="flex-1 min-h-[48px]" onClick={() => select(null)}
     style={{ boxShadow: active ? 'inset 0 2px 0 #3b82f6' : undefined }} />;
 }
-
+ 
 export default function LayersPanel() {
   const ast = useEditor(s => s.ast);
   const rows = flatten(ast);

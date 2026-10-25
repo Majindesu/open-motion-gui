@@ -9,6 +9,8 @@ import LibraryPanel from './LibraryPanel';
 import LayersPanel, { computeDrop, useDropHint } from './LayersPanel';
 import { createNode } from '../utils/NodeFactory';
 import Workspace from '../layout/Workspace';
+import Inspector from './Inspector';
+
 
 function TopNavigationBar() {
   const { mode, setMode, undo, redo, ast } = useEditor();
@@ -27,20 +29,14 @@ function TopNavigationBar() {
     </header>
   );
 }
-
+ 
 const LeftSidebar = () => (
   <aside id="left-sidebar" className="w-64 flex flex-col border-r border-neutral-700 min-h-0">
     <LibraryPanel />
     <LayersPanel />
   </aside>
 );
-
-const RightSidebar = () => (
-  <aside id="inspector-panel" className="w-72 border-l border-neutral-700 p-3 text-sm text-neutral-500">
-    Inspector (Design / Animate tabs) — phase 3
-  </aside>
-);
-
+ 
 const BottomTimeline = () => {
   const mode = useEditor(s => s.mode);
   return (
@@ -49,18 +45,18 @@ const BottomTimeline = () => {
     </footer>
   );
 };
-
+ 
 export default function EditorShell() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const setHint = useDropHint(s => s.setHint);
   const [dragLabel, setDragLabel] = useState<string | null>(null);
-
+ 
   const hintFor = (e: Pick<DragEndEvent, 'active' | 'over'>) => {
     if (!e.over) return null;
     const h = computeDrop(String(e.over.id), useEditor.getState().ast, e.over.rect, e.active.rect.current.translated);
     return h && h.targetId === String(e.active.id) ? null : h; // can't drop onto itself
   };
-
+ 
   const onDragEnd = (e: DragEndEvent) => {
     const hint = hintFor(e);
     setHint(null); setDragLabel(null);
@@ -73,7 +69,7 @@ export default function EditorShell() {
       s.select(node.id);
     } else s.moveNode(id, hint);
   };
-
+ 
   // Ctrl/Cmd+Z, Shift+Ctrl/Cmd+Z, Ctrl/Cmd+Y
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -87,7 +83,7 @@ export default function EditorShell() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-
+ 
   return (
     <DndContext sensors={sensors}
       onDragStart={e => setDragLabel(String(e.active.id).startsWith('lib:') ? String(e.active.id).slice(4) : useEditor.getState().ast.find(n => n.id === e.active.id)?.name ?? '')}
@@ -99,7 +95,7 @@ export default function EditorShell() {
         <div className="flex flex-1 min-h-0">
           <LeftSidebar />
           <Workspace />
-          <RightSidebar />
+          <Inspector />
         </div>
         <BottomTimeline />
       </div>
@@ -109,3 +105,4 @@ export default function EditorShell() {
     </DndContext>
   );
 }
+ 
