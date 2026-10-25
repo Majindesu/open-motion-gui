@@ -1,10 +1,7 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import Renderer from './components/Renderer';
+import EditorShell from './components/EditorShell';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+const App = location.pathname === '/renderer' ? Renderer : EditorShell;
+createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
