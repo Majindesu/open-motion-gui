@@ -4,20 +4,20 @@ import { capsFor, type SplitConfig } from '../services/Animation';
 import type { ASTNode, GSAPTween } from '../types/Common';
 
 const box = 'w-full bg-[#2A2A2A] rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-[#3b82f6]';
-
+ 
 const Field = ({ label, children }: { label: string; children: ReactNode }) => (
   <label className="block"><span className="block text-xs text-neutral-500 mb-1">{label}</span>{children}</label>
 );
 const Heading = ({ children }: { children: ReactNode }) => (
   <div className="pt-2 text-xs uppercase tracking-wide text-neutral-500">{children}</div>
 );
-
+ 
 /** Live updates while typing; one undo step on blur. */
 function Text({ value, onLive, ...rest }: { value: string; onLive: (v: string) => void } & Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
   const commit = useEditor(s => s.commit);
   return <input className={box} {...rest} value={value} onChange={e => onLive(e.target.value)} onBlur={commit} />;
 }
-
+ 
 function Num({ label, value, onLive }: { label: string; value: number | undefined; onLive: (v: number | undefined) => void }) {
   const commit = useEditor(s => s.commit);
   return (
@@ -30,13 +30,13 @@ function Num({ label, value, onLive }: { label: string; value: number | undefine
     </Field>
   );
 }
-
+ 
 function Select({ value, options, onChange }: { value: string; options: string[]; onChange: (v: string) => void }) {
   return <select className={box} value={value} onChange={e => onChange(e.target.value)}>
     {options.map(o => <option key={o} value={o}>{o}</option>)}
   </select>;
 }
-
+ 
 /* ---------------- Design ---------------- */
 function DesignTab({ node }: { node: ASTNode }) {
   const updateNode = useEditor(s => s.updateNode);
@@ -75,18 +75,18 @@ function DesignTab({ node }: { node: ASTNode }) {
     </>
   );
 }
-
+ 
 /* ---------------- Animate ---------------- */
 const EASES = ['none', 'power1.out', 'power2.out', 'power3.inOut', 'back.out(1.7)', 'elastic.out(1,0.3)', 'bounce.out'];
 const TRIGGERS: GSAPTween['trigger'][] = ['ON_LOAD', 'ON_CLICK', 'ON_HOVER', 'ON_SCROLL'];
 const TRANSFORMS = ['x', 'y', 'rotation', 'scale', 'opacity'];
 const SCROLL_DEFAULTS = { start: 'top 80%', end: 'bottom 20%', scrub: false };
-
+ 
 const num = (re: RegExp, s: string) => { const m = s.match(re); return m ? Number(m[1]) : undefined; };
 const composeFilter = (blur?: number, bright?: number) =>
   [blur != null && `blur(${blur}px)`, bright != null && `brightness(${bright}%)`].filter(Boolean).join(' ') || undefined;
-
-function TweenCard({ node, t, caps, upd, del }: {
+ 
+function TweenCard({ t, caps, upd, del }: {
   node: ASTNode; t: GSAPTween; caps: ReturnType<typeof capsFor>;
   upd: (fn: (t: GSAPTween) => GSAPTween, live?: boolean) => void; del: () => void;
 }) {
@@ -100,7 +100,7 @@ function TweenCard({ node, t, caps, upd, del }: {
   const filter = (props.filter as string) ?? '';
   const split = props.splitText as SplitConfig | undefined;
   const sp = t.scrollProps ?? SCROLL_DEFAULTS;
-
+ 
   return (
     <div className="rounded border border-neutral-700 p-2 space-y-2">
       <div className="flex gap-2">
@@ -145,7 +145,7 @@ function TweenCard({ node, t, caps, upd, del }: {
     </div>
   );
 }
-
+ 
 function AnimateTab({ node }: { node: ASTNode }) {
   const updateNode = useEditor(s => s.updateNode);
   const caps = useMemo(() => capsFor(node), [node.type, node.content]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -164,7 +164,7 @@ function AnimateTab({ node }: { node: ASTNode }) {
     </>
   );
 }
-
+ 
 /* ---------------- Shell ---------------- */
 export default function Inspector() {
   const node = useEditor(s => s.ast.find(n => n.id === s.selectedId));
@@ -184,3 +184,4 @@ export default function Inspector() {
     </aside>
   );
 }
+ 

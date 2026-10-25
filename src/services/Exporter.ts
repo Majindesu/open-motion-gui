@@ -1,12 +1,13 @@
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import type { ASTNode, GSAPTween } from '../types/Common';
-import { DRAW_SELECTOR, tweenVars } from './Animation';
- 
+import { tweenVars, DRAW_SELECTOR } from '../services/Animation';
+import { getAsset } from '../utils/Assets';
+
 const refName = (id: string) => 'ref_' + id.replace(/[^a-zA-Z0-9]/g, '_');
 const children = (ast: ASTNode[], pid: string | null) =>
   ast.filter(n => n.parentId === pid).sort((a, b) => a.style.zIndex - b.style.zIndex);
- 
+
 // ---------- AST -> JSX ----------
 function toJSX(ast: ASTNode[], node: ASTNode, depth: number): string {
   const pad = '  '.repeat(depth);
@@ -27,7 +28,7 @@ function toJSX(ast: ASTNode[], node: ASTNode, depth: number): string {
   };
   const attrs = `ref={${refName(node.id)}} style={${JSON.stringify(style)}}`;
   const kids = children(ast, node.id).map(k => toJSX(ast, k, depth + 1)).join('\n');
- 
+
   switch (node.type) {
     case 'RASTER':
       return `${pad}<img ${attrs} src=${JSON.stringify(node.src ?? '')} alt=${JSON.stringify(node.name)} />`;
@@ -39,7 +40,7 @@ function toJSX(ast: ASTNode[], node: ASTNode, depth: number): string {
       return `${pad}<div ${attrs}>\n${kids}\n${pad}</div>`;
   }
 }
- 
+
 // ---------- Tweens -> GSAP code ----------
 function toTween(node: ASTNode, t: GSAPTween): string {
   const { vars, draw, split, from } = tweenVars(node, t);
@@ -57,7 +58,7 @@ function toTween(node: ASTNode, t: GSAPTween): string {
     ? ` const split = SplitText.create(el, { type: ${JSON.stringify(split.type)} }); cleanups.push(() => split.revert());` : '';
   return `{ const el = ${refName(node.id)}.current; if (el) {${splitSetup} const run = (extra: gsap.TweenVars = {}) => ${call}; ${trigger} } }`;
 }
- 
+
 export function compileApp(ast: ASTNode[]): string {
   const roots = children(ast, null);
   const usesScroll = ast.some(n => n.animations.some(a => a.trigger === 'ON_SCROLL'));
@@ -73,17 +74,17 @@ export function compileApp(ast: ASTNode[]): string {
     .filter(Boolean).join(', ');
   const refs = ast.map(n => `  const ${refName(n.id)} = useRef<any>(null);`).join('\n');
   const tweens = ast.flatMap(n => n.animations.map(t => '      ' + toTween(n, t))).join('\n');
- 
+
   return `import { useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 ${pluginImports}
 gsap.registerPlugin(${registered});
- 
+
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
 ${refs}
- 
+
   useGSAP(() => {
     const mm = gsap.matchMedia();
     mm.add('(min-width: 768px)', () => {
@@ -92,7 +93,7 @@ ${tweens}
       return () => cleanups.forEach(fn => fn());
     });
   }, { scope: containerRef });
- 
+
   return (
     <div ref={containerRef} className="flex flex-col w-full min-h-screen">
 ${roots.map(r => toJSX(ast, r, 3)).join('\n')}
@@ -101,7 +102,7 @@ ${roots.map(r => toJSX(ast, r, 3)).join('\n')}
 }
 `;
 }
- 
+
 // ---------- Static boilerplate ----------
 const files: Record<string, string> = {
   'package.json': JSON.stringify({
@@ -116,7 +117,7 @@ const files: Record<string, string> = {
   'vite.config.ts': `import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
- 
+
 export default defineConfig({ plugins: [react(), tailwindcss()] });
 `,
   'tsconfig.json': JSON.stringify({
@@ -140,17 +141,26 @@ export default defineConfig({ plugins: [react(), tailwindcss()] });
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
- 
+
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
 `,
   'src/index.css': `@import "tailwindcss";\n`,
 };
- 
+
 export async function exportProject(ast: ASTNode[]) {
   const zip = new JSZip();
   const root = zip.folder('gsap-project')!;
   for (const [path, body] of Object.entries(files)) root.file(path, body);
-  root.file('src/App.tsx', compileApp(ast));
+
+  // Uploaded images ship as real files in public/assets/ and are referenced by URL from App.tsx.
+  const paths: Record<string, string> = {};
+  for (const id of new Set(ast.flatMap(n => (n.assetId ? [n.assetId] : [])))) {
+    const rec = await getAsset(id);
+    if (!rec) continue;
+    paths[id] = `/assets/${id}.${rec.ext}`;
+    root.file(`public${paths[id]}`, rec.blob);
+  }
+  const exportAst = ast.map(n => (n.assetId && paths[n.assetId] ? { ...n, src: paths[n.assetId] } : n));
+  root.file('src/App.tsx', compileApp(exportAst));
   saveAs(await zip.generateAsync({ type: 'blob' }), 'gsap-project.zip');
 }
- 

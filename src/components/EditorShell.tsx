@@ -11,6 +11,8 @@ import { createNode } from '../utils/NodeFactory';
 import Workspace from '../layout/Workspace';
 import Inspector from './Inspector';
 import BottomTimeline from './BottomTimeline';
+import FileMenu from './FileMenu';
+import Tour, { TOUR_EVENT } from './Tour';
 
 
 function TopNavigationBar() {
@@ -20,12 +22,16 @@ function TopNavigationBar() {
   return (
     <header className="flex items-center gap-3 px-3 h-11 border-b border-neutral-700 text-sm">
       <strong className="mr-2">GSAP Builder</strong>
-      <button onClick={undo}>Undo</button>
-      <button onClick={redo}>Redo</button>
+      <FileMenu />
+      <span className="w-px h-5 bg-neutral-700" />
+      <button className="px-2 py-1 rounded bg-[#2A2A2A] hover:bg-[#333]" onClick={undo}>Undo</button>
+      <button className="px-2 py-1 rounded bg-[#2A2A2A] hover:bg-[#333]" onClick={redo}>Redo</button>
       <div className="flex gap-1 mx-auto">
         <button className={tab('TIME')} onClick={() => setMode('TIME')}>TIME</button>
         <button className={tab('SCROLL')} onClick={() => setMode('SCROLL')}>SCROLL</button>
       </div>
+      <button className="px-2 py-1 rounded bg-[#2A2A2A] hover:bg-[#333]" aria-label="Replay the tour"
+        onClick={() => window.dispatchEvent(new Event(TOUR_EVENT))}>? Tour</button>
       <button className="px-3 py-1 rounded bg-[#2A2A2A]" onClick={() => exportProject(ast)}>Export Code</button>
     </header>
   );
@@ -90,6 +96,7 @@ export default function EditorShell() {
           <Inspector />
         </div>
         <BottomTimeline />
+        <Tour />
       </div>
       <DragOverlay>
         {dragLabel && <div className="px-3 py-1 rounded bg-[#3b82f6] text-white text-sm shadow">{dragLabel}</div>}

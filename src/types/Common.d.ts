@@ -17,7 +17,8 @@ export interface ASTNode {
   parentId: string | null;
   name: string;
   content?: string; // text, or DOMPurify-sanitized SVG
-  src?: string;
+  src?: string;       // runtime URL; for uploaded images it is rebuilt from assetId on load
+  assetId?: string;   // key into the IndexedDB asset store
   style: {
     layout: 'flex' | 'grid' | 'block';
     justifyContent?: string;
