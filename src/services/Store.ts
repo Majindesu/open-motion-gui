@@ -49,6 +49,14 @@ interface EditorState {
   select: (id: string | null) => void;
   mode: 'TIME' | 'SCROLL';
   setMode: (m: 'TIME' | 'SCROLL') => void;
+  time: number;          // TIME-mode playhead, seconds
+  scrollPct: number;     // SCROLL-mode playhead, 0-100
+  playing: boolean;
+  markers: { tweenId: string; start: number; end: number }[]; // measured by the renderer
+  setTime: (t: number) => void;
+  setScrollPct: (p: number) => void;
+  setPlaying: (p: boolean) => void;
+  setMarkers: (m: EditorState['markers']) => void;
   insertNode: (node: ASTNode, drop: Drop) => void;
   moveNode: (id: string, drop: Drop) => void;
   /** live=true: update the canvas without writing history (call commit() on mouse-up) */
@@ -87,6 +95,11 @@ export const useEditor = create<EditorState>()((set, get) => {
     select: id => set({ selectedId: id }),
     mode: 'TIME',
     setMode: mode => set({ mode }),
+    time: 0, scrollPct: 0, playing: false, markers: [],
+    setTime: time => set({ time }),
+    setScrollPct: scrollPct => set({ scrollPct }),
+    setPlaying: playing => set({ playing }),
+    setMarkers: markers => set({ markers }),
     insertNode: (node, drop) => mutate(a => place(a, node, drop)),
     moveNode: (id, drop) => {
       const a = get().ast;

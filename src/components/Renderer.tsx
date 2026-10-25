@@ -48,6 +48,8 @@ export default function Renderer() {
   const [selected, setSelected] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const timer = useRef<number>(0);
+  const tlRef = useRef<gsap.core.Timeline | null>(null); // paused master timeline (TIME mode scrubbing)
+  const timeRef = useRef(0);
  
   useEffect(() => {
     const onMessage = (e: MessageEvent<PostMessageEvent>) => {
@@ -59,8 +61,11 @@ export default function Renderer() {
         timer.current = window.setTimeout(() => setSettled(msg.payload), SETTLE_MS);
       } else if (msg.type === 'SET_SELECTION') {
         setSelected(msg.payload);
+      } else if (msg.type === 'SCRUB_PLAYHEAD') {
+        const { time, mode } = msg.payload;
+        if (mode === 'TIME') { timeRef.current = time; tlRef.current?.time(time); }
+        else window.scrollTo(0, (time / 100) * ScrollTrigger.maxScroll(window));
       }
-      // SCRUB_PLAYHEAD / UPDATE_SCROLL_MARKERS: handled in the timeline phase
     };
     window.addEventListener('message', onMessage);
     sendToHost({ type: 'READY' });
@@ -71,6 +76,7 @@ export default function Renderer() {
     const mm = gsap.matchMedia();
     mm.add('(min-width: 0px)', () => {
       const cleanups: Array<() => void> = [];
+      const tl = gsap.timeline({ paused: true });
       for (const node of settled) {
         const el = root.current?.querySelector<HTMLElement>(`[data-node-id="${node.id}"]`);
         if (!el) continue;
@@ -83,23 +89,36 @@ export default function Renderer() {
             cleanups.push(() => sp.revert());
             targets = sp[split.type];
           }
-          const run = (extra: gsap.TweenVars = {}) =>
-            draw ? gsap.fromTo(targets, { drawSVG: '0%' }, { ...vars, drawSVG: '100%', ...extra })
-            : from ? gsap.from(targets, { ...vars, ...extra })
-            : gsap.to(targets, { ...vars, ...extra });
-          if (t.trigger === 'ON_LOAD') run();
-          else if (t.trigger === 'ON_SCROLL') run({ scrollTrigger: { trigger: el, ...t.scrollProps } });
-          else {
-            const evt = t.trigger === 'ON_CLICK' ? 'click' : 'mouseenter';
-            const h = () => run();
-            el.addEventListener(evt, h);
-            cleanups.push(() => el.removeEventListener(evt, h));
+          if (t.trigger === 'ON_SCROLL') {
+            // live: ScrollTrigger drives it. id lets us report its measured range to the timeline.
+            const v = { ...vars, scrollTrigger: { id: t.id, trigger: el, ...t.scrollProps } };
+            if (draw) gsap.fromTo(targets, { drawSVG: '0%' }, { ...v, drawSVG: '100%' });
+            else if (from) gsap.from(targets, v);
+            else gsap.to(targets, v);
+          } else {
+            // everything else is placed on the master timeline at its delay, so it can be scrubbed
+            const v = { ...vars, delay: 0 };
+            if (draw) tl.fromTo(targets, { drawSVG: '0%' }, { ...v, drawSVG: '100%' }, t.delay);
+            else if (from) tl.from(targets, v, t.delay);
+            else tl.to(targets, v, t.delay);
           }
         }
       }
-      return () => cleanups.forEach(fn => fn());
+      tl.time(timeRef.current); // survive rebuilds without jumping back to 0
+      tlRef.current = tl;
+      return () => { tlRef.current = null; cleanups.forEach(fn => fn()); };
     });
-    return () => mm.revert();
+    const raf = requestAnimationFrame(() => {
+      ScrollTrigger.refresh();
+      const max = ScrollTrigger.maxScroll(window) || 1;
+      const pct = gsap.utils.clamp(0, 100);
+      sendToHost({
+        type: 'SCROLL_MARKERS',
+        payload: ScrollTrigger.getAll().filter(st => st.vars.id)
+          .map(st => ({ tweenId: String(st.vars.id), start: pct((st.start / max) * 100), end: pct((st.end / max) * 100) })),
+      });
+    });
+    return () => { cancelAnimationFrame(raf); mm.revert(); };
   }, { scope: root, dependencies: [settled], revertOnUpdate: true });
  
   return (
@@ -109,3 +128,4 @@ export default function Renderer() {
     </div>
   );
 }
+ 

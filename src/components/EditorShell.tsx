@@ -37,15 +37,6 @@ const LeftSidebar = () => (
   </aside>
 );
  
-const BottomTimeline = () => {
-  const mode = useEditor(s => s.mode);
-  return (
-    <footer id="timeline-panel" className="h-44 border-t border-neutral-700 p-3 text-sm text-neutral-500">
-      Timeline ({mode === 'TIME' ? 'seconds' : 'scroll %'}) — phase 4
-    </footer>
-  );
-};
- 
 export default function EditorShell() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const setHint = useDropHint(s => s.setHint);
