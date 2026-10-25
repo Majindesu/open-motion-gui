@@ -10,6 +10,7 @@ import LayersPanel, { computeDrop, useDropHint } from './LayersPanel';
 import { createNode } from '../utils/NodeFactory';
 import Workspace from '../layout/Workspace';
 import Inspector from './Inspector';
+import BottomTimeline from './BottomTimeline';
 
 
 function TopNavigationBar() {

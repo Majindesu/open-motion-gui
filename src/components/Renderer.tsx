@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { DrawSVGPlugin } from "gsap/DrawSVGPlugin";
+import { SplitText } from "gsap/SplitText";
 import DOMPurify from 'dompurify';
 import type { ASTNode, IframeEvent, PostMessageEvent } from '../types/Common';
 import { DRAW_SELECTOR, tweenVars } from '../services/Animation';
