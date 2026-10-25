@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditor } from '../services/Store';
 import type { IframeEvent, PostMessageEvent } from '../types/Common';
 import { DEVICES, type DeviceId } from '../utils/Devices';
