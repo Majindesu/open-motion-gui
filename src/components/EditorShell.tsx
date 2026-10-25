@@ -4,6 +4,7 @@ import {
   type DragEndEvent, type DragMoveEvent,
 } from '@dnd-kit/core';
 import { useEditor } from '../services/Store';
+import { exportProject } from '../services/Exporter';
 import LibraryPanel from './LibraryPanel';
 import LayersPanel, { computeDrop, useDropHint } from './LayersPanel';
 import { createNode } from '../utils/NodeFactory';
@@ -22,6 +23,7 @@ function TopNavigationBar() {
         <button className={tab('TIME')} onClick={() => setMode('TIME')}>TIME</button>
         <button className={tab('SCROLL')} onClick={() => setMode('SCROLL')}>SCROLL</button>
       </div>
+      <button className="px-3 py-1 rounded bg-[#2A2A2A]" onClick={() => exportProject(ast)}>Export Code</button>
     </header>
   );
 }
