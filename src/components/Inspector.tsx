@@ -1,7 +1,7 @@
 import { useMemo, useState, type InputHTMLAttributes, type ReactNode } from 'react';
-import { useEditor } from './store';
-import { capsFor, type SplitConfig } from './animation';
-import type { ASTNode, GSAPTween } from './types';
+import { useEditor } from '../services/Store';
+import { capsFor, type SplitConfig } from '../services/Animation';
+import type { ASTNode, GSAPTween } from '../types/Common';
 
 const box = 'w-full bg-[#2A2A2A] rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-[#3b82f6]';
 
