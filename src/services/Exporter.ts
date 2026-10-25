@@ -35,7 +35,7 @@ function toJSX(ast: ASTNode[], node: ASTNode, depth: number): string {
     }
   }
 }
-
+ 
 export function compileApp(ast: ASTNode[]): string {
   const animated = ast
     .filter((n) => n.animations.length)
@@ -75,7 +75,7 @@ ${children(ast, null)
 }
 `;
 }
-
+ 
 // ---------- Static boilerplate ----------
 const files: Record<string, string> = {
   "package.json": JSON.stringify(
@@ -150,12 +150,12 @@ createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictM
   "src/index.css": `@import "tailwindcss";\n`, // renderer.css in the editor is identical
   "src/animations.ts": runtimeSource,
 };
-
+ 
 export async function exportProject(ast: ASTNode[]) {
   const zip = new JSZip();
   const root = zip.folder("gsap-project")!;
   for (const [path, body] of Object.entries(files)) root.file(path, body);
-
+ 
   // Uploaded images ship as real files in public/assets/ and are referenced by URL from App.tsx.
   const paths: Record<string, string> = {};
   for (const id of new Set(
