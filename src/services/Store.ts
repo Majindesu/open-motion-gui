@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import type { ASTNode } from '../types/Common';
+import type { DeviceId } from '../utils/Devices';
+
 
 const MAX_HISTORY = 100;
  
@@ -57,6 +59,10 @@ interface EditorState {
   setScrollPct: (p: number) => void;
   setPlaying: (p: boolean) => void;
   setMarkers: (m: EditorState['markers']) => void;
+  device: DeviceId;
+  zoom: 'fit' | number;
+  setDevice: (d: DeviceId) => void;
+  setZoom: (z: 'fit' | number) => void;
   insertNode: (node: ASTNode, drop: Drop) => void;
   moveNode: (id: string, drop: Drop) => void;
   /** live=true: update the canvas without writing history (call commit() on mouse-up) */
@@ -100,6 +106,9 @@ export const useEditor = create<EditorState>()((set, get) => {
     setScrollPct: scrollPct => set({ scrollPct }),
     setPlaying: playing => set({ playing }),
     setMarkers: markers => set({ markers }),
+    device: 'DESKTOP', zoom: 'fit',
+    setDevice: device => set({ device }),
+    setZoom: zoom => set({ zoom }),
     insertNode: (node, drop) => mutate(a => place(a, node, drop)),
     moveNode: (id, drop) => {
       const a = get().ast;

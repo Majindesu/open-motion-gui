@@ -3,106 +3,67 @@ import { saveAs } from 'file-saver';
 import type { ASTNode, GSAPTween } from '../types/Common';
 import { tweenVars, DRAW_SELECTOR } from '../services/Animation';
 import { getAsset } from '../utils/Assets';
+import { nodeStyle, ROOT_CLASS } from './Layout';
+import runtimeSource from './runtime.ts?raw'
 
-const refName = (id: string) => 'ref_' + id.replace(/[^a-zA-Z0-9]/g, '_');
+
 const children = (ast: ASTNode[], pid: string | null) =>
   ast.filter(n => n.parentId === pid).sort((a, b) => a.style.zIndex - b.style.zIndex);
-
-// ---------- AST -> JSX ----------
+ 
+// ---------- AST -> JSX (styles come from the same nodeStyle() the canvas uses) ----------
 function toJSX(ast: ASTNode[], node: ASTNode, depth: number): string {
   const pad = '  '.repeat(depth);
-  const s = node.style;
-  const style = {
-    display: s.layout,
-    justifyContent: s.justifyContent,
-    alignItems: s.alignItems,
-    padding: s.padding,
-    background: s.background,
-    color: s.color,
-    fontSize: s.fontSize,
-    width: s.width,
-    height: s.height,
-    position: 'relative',
-    zIndex: s.zIndex,
-    ...(node.animations.length ? { isolation: 'isolate' } : {}),
-  };
-  const attrs = `ref={${refName(node.id)}} style={${JSON.stringify(style)}}`;
-  const kids = children(ast, node.id).map(k => toJSX(ast, k, depth + 1)).join('\n');
-
+  // Only animated nodes need an id: the runtime finds them by data-node-id.
+  const id = node.animations.length ? `data-node-id=${JSON.stringify(node.id)} ` : '';
+  const attrs = `${id}style={${JSON.stringify(nodeStyle(node))}}`;
+ 
   switch (node.type) {
     case 'RASTER':
       return `${pad}<img ${attrs} src=${JSON.stringify(node.src ?? '')} alt=${JSON.stringify(node.name)} />`;
-    case 'INLINE_SVG': // content must already be DOMPurify-sanitized
+    case 'INLINE_SVG': // content is DOMPurify-sanitized at import
       return `${pad}<div ${attrs} dangerouslySetInnerHTML={{ __html: ${JSON.stringify(node.content ?? '')} }} />`;
     case 'TEXT':
       return `${pad}<p ${attrs}>{${JSON.stringify(node.content ?? '')}}</p>`;
-    default:
+    default: {
+      const kids = children(ast, node.id).map(k => toJSX(ast, k, depth + 1)).join('\n');
       return `${pad}<div ${attrs}>\n${kids}\n${pad}</div>`;
+    }
   }
 }
-
-// ---------- Tweens -> GSAP code ----------
-function toTween(node: ASTNode, t: GSAPTween): string {
-  const { vars, draw, split, from } = tweenVars(node, t);
-  const v = JSON.stringify(vars);
-  const target = draw ? `el.querySelectorAll(${JSON.stringify(DRAW_SELECTOR)})` : split ? 'split.chars' : 'el';
-  const call = draw
-    ? `gsap.fromTo(${target}, { drawSVG: '0%' }, { ...${v}, drawSVG: '100%', ...extra })`
-    : `gsap.${from ? 'from' : 'to'}(${target}, { ...${v}, ...extra })`;
-  const evt = t.trigger === 'ON_CLICK' ? 'click' : 'mouseenter';
-  const trigger =
-    t.trigger === 'ON_LOAD' ? 'run();'
-    : t.trigger === 'ON_SCROLL' ? `run({ scrollTrigger: { trigger: el, ...${JSON.stringify(t.scrollProps ?? {})} } });`
-    : `const h = () => run(); el.addEventListener('${evt}', h); cleanups.push(() => el.removeEventListener('${evt}', h));`;
-  const splitSetup = split
-    ? ` const split = SplitText.create(el, { type: ${JSON.stringify(split.type)} }); cleanups.push(() => split.revert());` : '';
-  return `{ const el = ${refName(node.id)}.current; if (el) {${splitSetup} const run = (extra: gsap.TweenVars = {}) => ${call}; ${trigger} } }`;
-}
-
+ 
 export function compileApp(ast: ASTNode[]): string {
-  const roots = children(ast, null);
-  const usesScroll = ast.some(n => n.animations.some(a => a.trigger === 'ON_SCROLL'));
-  const resolved = ast.flatMap(n => n.animations.map(t => tweenVars(n, t)));
-  const usesDraw = resolved.some(r => r.draw);
-  const usesSplit = resolved.some(r => r.split);
-  const pluginImports = [
-    usesScroll && "import { ScrollTrigger } from 'gsap/ScrollTrigger';",
-    usesDraw && "import { DrawSVGPlugin } from 'gsap/DrawSVGPlugin';",
-    usesSplit && "import { SplitText } from 'gsap/SplitText';",
-  ].filter(Boolean).join('\n');
-  const registered = ['useGSAP', usesScroll && 'ScrollTrigger', usesDraw && 'DrawSVGPlugin', usesSplit && 'SplitText']
-    .filter(Boolean).join(', ');
-  const refs = ast.map(n => `  const ${refName(n.id)} = useRef<any>(null);`).join('\n');
-  const tweens = ast.flatMap(n => n.animations.map(t => '      ' + toTween(n, t))).join('\n');
-
+  const animated = ast.filter(n => n.animations.length).map(n => ({
+    id: n.id, type: n.type, content: n.type === 'INLINE_SVG' ? n.content : undefined, animations: n.animations,
+  }));
+ 
   return `import { useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
-${pluginImports}
-gsap.registerPlugin(${registered});
-
+import { buildAnimations, type RuntimeNode } from './animations';
+ 
+gsap.registerPlugin(useGSAP);
+ 
+// Animation data for the elements below. ./animations.ts is the same runtime the editor's canvas runs.
+const animated: RuntimeNode[] = ${JSON.stringify(animated, null, 2)};
+ 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
-${refs}
-
+ 
   useGSAP(() => {
-    const mm = gsap.matchMedia();
-    mm.add('(min-width: 768px)', () => {
-      const cleanups: Array<() => void> = [];
-${tweens}
-      return () => cleanups.forEach(fn => fn());
-    });
+    if (!containerRef.current) return;
+    const built = buildAnimations(containerRef.current, animated);
+    return () => built.revert();
   }, { scope: containerRef });
-
+ 
   return (
-    <div ref={containerRef} className="flex flex-col w-full min-h-screen">
-${roots.map(r => toJSX(ast, r, 3)).join('\n')}
+    <div ref={containerRef} className="${ROOT_CLASS}">
+${children(ast, null).map(r => toJSX(ast, r, 3)).join('\n')}
     </div>
   );
 }
 `;
 }
-
+ 
 // ---------- Static boilerplate ----------
 const files: Record<string, string> = {
   'package.json': JSON.stringify({
@@ -117,11 +78,11 @@ const files: Record<string, string> = {
   'vite.config.ts': `import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-
+ 
 export default defineConfig({ plugins: [react(), tailwindcss()] });
 `,
   'tsconfig.json': JSON.stringify({
-    compilerOptions: { target: 'ES2020', module: 'ESNext', moduleResolution: 'bundler', jsx: 'react-jsx', strict: true, skipLibCheck: true, noEmit: true },
+    compilerOptions: { target: 'ES2020', module: 'ESNext', moduleResolution: 'bundler', jsx: 'react-jsx', strict: true, skipLibCheck: true, noEmit: true, lib: ['ES2020', 'DOM', 'DOM.Iterable'] },
     include: ['src'],
   }, null, 2),
   'index.html': `<!doctype html>
@@ -141,17 +102,18 @@ export default defineConfig({ plugins: [react(), tailwindcss()] });
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
-
+ 
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
 `,
-  'src/index.css': `@import "tailwindcss";\n`,
+  'src/index.css': `@import "tailwindcss";\n`, // renderer.css in the editor is identical
+  'src/animations.ts': runtimeSource,
 };
-
+ 
 export async function exportProject(ast: ASTNode[]) {
   const zip = new JSZip();
   const root = zip.folder('gsap-project')!;
   for (const [path, body] of Object.entries(files)) root.file(path, body);
-
+ 
   // Uploaded images ship as real files in public/assets/ and are referenced by URL from App.tsx.
   const paths: Record<string, string> = {};
   for (const id of new Set(ast.flatMap(n => (n.assetId ? [n.assetId] : [])))) {
